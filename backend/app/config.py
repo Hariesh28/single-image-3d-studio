@@ -16,7 +16,7 @@ def _float(name: str, default: float) -> float:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "Single Image 3D Studio"
-    version: str = "5.0.0"
+    version: str = "5.1.0"
     api_prefix: str = "/api"
     host: str = os.getenv("S3D_HOST", "127.0.0.1")
     port: int = _int("S3D_PORT", 8000)

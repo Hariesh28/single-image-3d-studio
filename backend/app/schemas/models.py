@@ -80,6 +80,7 @@ class SegmentationRequest(BaseModel):
 class SceneState(BaseModel):
     mode: str = "split"
     tool: str = "inspect"
+    right_panel: str = "inspect"
     region_shape: str = "polygon"
     density: int = Field(default=0, ge=0, le=3)
     point_size: float = Field(default=2.2, ge=0.5, le=12)
@@ -87,6 +88,7 @@ class SceneState(BaseModel):
     color_mode: str = "rgb"
     rgb: bool = True
     point_opacity: float = Field(default=0.96, ge=0.1, le=1)
+    depth_exaggeration: float = Field(default=1.0, ge=0.1, le=8.0)
     near_depth: float = Field(default=0.05, ge=0.01)
     far_depth: float = Field(default=80.0, gt=0.01)
     background: str = "#050b13"
@@ -113,3 +115,8 @@ class SceneState(BaseModel):
     parallax_pitch: float = Field(default=0, ge=-360, le=360)
     camera_view: str = "home"
     selected_object_id: int | None = None
+    measure_slot: str = "A"
+    measurement_a: dict | None = None
+    measurement_b: dict | None = None
+    measurement_c: dict | None = None
+    measurement_history: list[dict] = Field(default_factory=list, max_length=100)

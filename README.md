@@ -1,4 +1,4 @@
-# Single Image 3D Studio 5.0
+# Single Image 3D Studio 5.1.0
 
 A local-first, production-oriented **single-image metric 3D analysis studio** built around **Depth Anything V2 Metric Large**, **FastAPI**, **PyTorch**, **React**, and **Three.js/WebGL**.
 
@@ -238,3 +238,16 @@ npm run test
 ```
 
 The repository is designed for local execution. A full browser production build requires the frontend npm dependencies to be installed in the target environment.
+
+
+## 5.1.0 viewer fix
+
+The split workspace explicitly keeps Image, Depth, and Three.js as grid-positioned siblings. Previous absolute positioning rules caused the Three.js canvas to cover the entire split grid, which hid the image and depth panels. The RGB point renderer also uses a more visible metric world-space point size.
+
+## 5.1 viewer/interaction upgrade
+
+Version 5.1 adds a dedicated Measure workspace with explicit A/B/C slots, live metric deltas, 3D distance/horizontal/vertical/depth components, angle support, backend-math verification, named measurement history, and state persistence. The main application now routes Controls, Inspect, Measure, Analytics, and Project into one coherent side workspace instead of keeping the inspector as a separate overlay. The 3D viewer adds display-only depth exaggeration, more robust scene framing, adaptive point budgets, stronger point-picking thresholds, synchronized A/B/C markers, and improved camera presets. Image/depth views expose distinct measurement markers while preserving the shared pixel/depth coordinate system.
+
+## Changed surface in 5.1
+
+The 5.1 upgrade is intentionally concentrated in the presentation/interaction layer while preserving the existing reconstruction backend. See `docs/CHANGED_FOLDERS.md` for the exact changed folders and key files.

@@ -2,26 +2,106 @@ import { useEffect, useMemo, useState } from 'react'
 import { evaluateDistance, histogram, reproject, saveAnnotations, stats, systemInfo } from '../api/client'
 import { useSceneStore } from '../store/useSceneStore'
 
-export function AnalysisPanel(){
- const s=useSceneStore(),scene=s.scene,profile=s.profile,region=s.regionResult
- const [h,setH]=useState<any>(null),[st,setSt]=useState<any>(null),[sys,setSys]=useState<any>(null),[known,setKnown]=useState(''),[evalResult,setEvalResult]=useState<any>(null),[reproj,setReproj]=useState<any>(null)
- useEffect(()=>{if(scene){Promise.all([histogram(scene.scene_id),stats(scene.scene_id),systemInfo()]).then(([hh,ss,sys0])=>{setH(hh);setSt(ss);setSys(sys0)}).catch(()=>{})}},[scene?.scene_id])
- useEffect(()=>{if(scene&&s.selected)reproject(scene.scene_id,[s.selected.x_m,s.selected.y_m,s.selected.z_m]).then(setReproj).catch(()=>setReproj(null))},[scene?.scene_id,s.selected])
- const max=Math.max(...(h?.counts||[1]));
- const evalNow=async()=>{if(!scene||!s.measurementA||!s.measurementB||!known)return;const pred=Math.hypot(s.measurementB.x_m-s.measurementA.x_m,s.measurementB.y_m-s.measurementA.y_m,s.measurementB.z_m-s.measurementA.z_m);try{setEvalResult(await evaluateDistance(scene.scene_id,pred,+known))}catch{setEvalResult(null)}}
- const depthRange=useMemo(()=>st?`${st.min_m.toFixed(2)}–${st.max_m.toFixed(2)} m`:'—',[st])
- if(!scene)return null
- return <div className="analysisPanel panelScroll">
-  <section><h3>DEPTH STATISTICS</h3>{st&&<div className="statGrid"><Stat n="Median" v={`${st.median_m.toFixed(2)} m`}/><Stat n="Mean" v={`${st.mean_m.toFixed(2)} m`}/><Stat n="Std dev" v={`${st.std_m.toFixed(2)} m`}/><Stat n="Valid" v={`${(st.valid_fraction*100).toFixed(1)}%`}/><Stat n="Range" v={depthRange}/><Stat n="P95" v={`${st.percentiles_m?.p95?.toFixed(2)??'—'} m`}/></div>}{h&&<><div className="histogram">{h.counts.map((v:number,i:number)=><i key={i} role="button" onClick={()=>s.set({nearDepth:Math.max(.05,h.edges_m[i]||.05),farDepth:Math.max((h.edges_m[i+1]||scene.depth_max_m), (h.edges_m[i]||.05)+.01)})} style={{height:`${Math.max(2,v/max*100)}%`}} title={`Click to clip ${h.edges_m[i]?.toFixed(2)}–${h.edges_m[i+1]?.toFixed(2)} m`}/>)}</div><div className="small">{h.counts.length} bins · click a bin to focus the corresponding depth range.</div></>}</section>
-  <section><h3>RECONSTRUCTION QUALITY</h3><div className="qualityBox"><div><span>Depth score</span><b>{scene.quality.depth_quality?.label??'—'}</b></div><div><span>Valid pixels</span><b>{((scene.quality.depth_valid_fraction??0)*100).toFixed(1)}%</b></div><div><span>Smoothness</span><b>{((scene.quality.depth_quality?.smoothness??0)*100).toFixed(0)}%</b></div><div><span>Calibration</span><b>{scene.calibration.quality?.label??'—'}</b></div><div><span>Planes</span><b>{scene.planes.length}</b></div><div><span>Mesh</span><b>{scene.quality.mesh_generated?'READY':'—'}</b></div></div></section>
-  {region&&<section><h3>REGION / ROI</h3><div className="statGrid"><Stat n="Pixels" v={region.pixel_count.toLocaleString()}/><Stat n="Valid depth" v={region.valid_depth_pixels.toLocaleString()}/><Stat n="Median depth" v={region.depth_median_m==null?'—':`${region.depth_median_m.toFixed(2)} m`}/><Stat n="Width" v={region.dimensions_m?`${region.dimensions_m[0].toFixed(2)} m`:'—'}/><Stat n="Height" v={region.dimensions_m?`${region.dimensions_m[1].toFixed(2)} m`:'—'}/><Stat n="Area est." v={region.surface_area_m2==null?'—':`${region.surface_area_m2.toFixed(2)} m²`}/><Stat n="BBox volume" v={region.bbox_volume_m3==null?'—':`${region.bbox_volume_m3.toFixed(2)} m³`}/></div></section>}
-  {profile&&<section><h3>DEPTH PROFILE</h3><Profile data={profile.depth_m}/><div className="small">{profile.start.join(', ')} → {profile.end.join(', ')} · {profile.samples} samples · 3D path ≈ {(profile.distance_m.at(-1)??0).toFixed(2)} m</div></section>}
-  <section><h3>MEASUREMENT VALIDATION</h3><div className="small">With A and B selected, enter a known real distance to quantify this reconstruction's measurement error.</div><div className="rangePair"><input type="number" min=".001" step=".01" placeholder="Known distance (m)" value={known} onChange={e=>setKnown(e.target.value)}/><button disabled={!s.measurementA||!s.measurementB||!known} onClick={evalNow}>Evaluate</button></div>{evalResult&&<div className="measurementCard"><span>Predicted</span><strong>{evalResult.predicted_distance_m.toFixed(3)} m</strong><span>Error</span><strong>{evalResult.absolute_error_m.toFixed(3)} m · {evalResult.relative_error_percent.toFixed(2)}%</strong></div>}</section>
-  {s.selected&&<section><h3>REPROJECTION CHECK</h3><div className="small">Projects the selected metric point back through K. This validates the camera/coordinate transform consistency.</div>{reproj&&<div className="statGrid"><Stat n="Original pixel" v={`${s.selected.pixel_x}, ${s.selected.pixel_y}`}/><Stat n="Projected" v={`${reproj.pixel_x.toFixed(2)}, ${reproj.pixel_y.toFixed(2)}`}/><Stat n="Inside image" v={reproj.inside?'YES':'NO'}/></div>}</section>}
-  <section><h3>ANNOTATIONS</h3>{s.annotations.length?<div className="annotationList">{s.annotations.map(a=><div className="annotationRow" key={a.id}><button onClick={()=>s.set({selected:a.point,cameraView:'selected'})}><b>{a.name}</b><span>{a.point.x_m.toFixed(2)}, {a.point.y_m.toFixed(2)}, {a.point.z_m.toFixed(2)} m</span></button><button className="dangerMini" onClick={async()=>{const next=s.annotations.filter(x=>x.id!==a.id);s.set({annotations:next});if(scene)await saveAnnotations(scene.scene_id,next)}}>×</button></div>)}</div>:<div className="small">Use Annotate mode to pin named 3D coordinates to the image.</div>}</section>
-  {s.annotations.length>=2&&<section><h3>ANNOTATION DISTANCES</h3><div className="distanceMatrix">{s.annotations.map((a,i)=><div key={a.id} className="distanceRow"><b>{a.name}</b><span>{s.annotations.filter((_,j)=>j!==i).slice(0,3).map(b=>`${b.name}: ${Math.hypot(b.point.x_m-a.point.x_m,b.point.y_m-a.point.y_m,b.point.z_m-a.point.z_m).toFixed(2)} m`).join(' · ')}</span></div>)}</div></section>}
-  <section><h3>MODEL & PIPELINE</h3><div className="qualityBox"><div><span>Model</span><b>{scene.model}</b></div><div><span>Dataset</span><b>{scene.model_dataset}</b></div><div><span>Input</span><b>{scene.quality.model_input_size??'—'} px</b></div><div><span>Inference</span><b>{scene.quality.inference_seconds??'—'} s</b></div><div><span>Points</span><b>{scene.point_counts[0].toLocaleString()}</b></div><div><span>Frame</span><b>CAMERA / METERS</b></div><div><span>Source revision</span><b>{scene.model_source_commit.slice(0,8)}</b></div><div><span>Device</span><b>{sys?.gpu_name||sys?.device||'—'}</b></div><div><span>VRAM allocated</span><b>{sys?.gpu_memory?`${(sys.gpu_memory.allocated_bytes/1073741824).toFixed(2)} GB`:'—'}</b></div></div></section>
- </div>
+export function AnalysisPanel() {
+  const s = useSceneStore()
+  const scene = s.scene
+  const [hist, setHist] = useState<any>(null)
+  const [stat, setStat] = useState<any>(null)
+  const [sys, setSys] = useState<any>(null)
+  const [known, setKnown] = useState('')
+  const [evalResult, setEvalResult] = useState<any>(null)
+  const [reproj, setReproj] = useState<any>(null)
+
+  useEffect(() => {
+    if (!scene) return
+    Promise.all([histogram(scene.scene_id), stats(scene.scene_id), systemInfo()]).then(([h, st, si]) => { setHist(h); setStat(st); setSys(si) }).catch(() => {})
+  }, [scene?.scene_id])
+
+  useEffect(() => {
+    if (!scene || !s.selected) { setReproj(null); return }
+    reproject(scene.scene_id, [s.selected.x_m, s.selected.y_m, s.selected.z_m]).then(setReproj).catch(() => setReproj(null))
+  }, [scene?.scene_id, s.selected])
+
+  const currentMeasurement = useMemo(() => {
+    if (!s.measurementA || !s.measurementB) return null
+    const a = s.measurementA; const b = s.measurementB
+    return Math.hypot(b.x_m-a.x_m,b.y_m-a.y_m,b.z_m-a.z_m)
+  }, [s.measurementA,s.measurementB])
+
+  const evaluate = async () => {
+    if (!scene || currentMeasurement == null || !known) return
+    try { setEvalResult(await evaluateDistance(scene.scene_id, currentMeasurement, Number(known))) } catch { setEvalResult(null) }
+  }
+
+  const maxBin = Math.max(...(hist?.counts || [1]))
+  if (!scene) return null
+  const dims = scene.width / Math.max(scene.height, 1)
+
+  return <aside className="studioPanel panelScroll">
+    <div className="panelHeaderBlock"><div className="eyebrow">SCENE INSIGHTS</div><h2>ANALYTICS</h2><p>Depth, geometry, calibration and runtime diagnostics.</p></div>
+
+    <section>
+      <SectionTitle title="SCENE SNAPSHOT" />
+      <div className="metricGrid">
+        <Metric label="Image" value={`${scene.width} × ${scene.height}`} />
+        <Metric label="Aspect" value={dims.toFixed(2)} />
+        <Metric label="Points" value={scene.point_counts[0].toLocaleString()} />
+        <Metric label="Depth span" value={`${scene.depth_min_m.toFixed(2)}–${scene.depth_max_m.toFixed(2)} m`} />
+        <Metric label="Planes" value={String(scene.planes.length)} />
+        <Metric label="Mesh" value={scene.quality.mesh_generated ? 'Ready' : 'Not generated'} />
+      </div>
+    </section>
+
+    <section>
+      <SectionTitle title="DEPTH STATISTICS" />
+      {stat && <div className="metricGrid"><Metric label="Min" value={`${stat.min_m.toFixed(2)} m`} /><Metric label="Median" value={`${stat.median_m.toFixed(2)} m`} /><Metric label="Mean" value={`${stat.mean_m.toFixed(2)} m`} /><Metric label="Std dev" value={`${stat.std_m.toFixed(2)} m`} /><Metric label="P95" value={`${stat.percentiles_m?.p95?.toFixed(2) ?? '—'} m`} /><Metric label="Valid" value={`${(stat.valid_fraction*100).toFixed(1)}%`} /></div>}
+      {hist && <><div className="histogram analyticsHistogram">{hist.counts.map((value:number,index:number)=><i key={index} role="button" style={{height:`${Math.max(2,value/maxBin*100)}%`}} title={`${hist.edges_m[index]?.toFixed(2)}–${hist.edges_m[index+1]?.toFixed(2)} m`} onClick={()=>s.set({nearDepth:Math.max(.05,hist.edges_m[index]||.05),farDepth:Math.max(hist.edges_m[index+1]||scene.depth_max_m,(hist.edges_m[index]||.05)+.01),rightPanel:'controls'})}/>)}</div><div className="small">Click a depth bin to isolate that range in the point cloud.</div></>}
+    </section>
+
+    <section>
+      <SectionTitle title="QUALITY & CALIBRATION" />
+      <div className="qualityBox">
+        <Row n="Depth quality" v={scene.quality.depth_quality?.label ?? '—'} />
+        <Row n="Valid pixels" v={`${((scene.quality.depth_valid_fraction ?? 0)*100).toFixed(1)}%`} />
+        <Row n="Depth smoothness" v={`${((scene.quality.depth_quality?.smoothness ?? 0)*100).toFixed(0)}%`} />
+        <Row n="Calibration source" v={scene.calibration.source} />
+        <Row n="Calibration quality" v={scene.calibration.quality?.label ?? '—'} />
+        <Row n="Scene classification" v={`${Math.round(scene.scene_confidence*100)}% · ${scene.scene_selection_source}`} />
+      </div>
+      <div className={`validationBox ${scene.calibration.quality?.label === 'high' ? 'good' : 'warn'}`}><span>Metric-coordinate caveat</span><b>{scene.calibration.quality?.label === 'high' ? 'Manual intrinsics active' : 'Calibration can limit XY accuracy'}</b></div>
+    </section>
+
+    {s.selected && <section>
+      <SectionTitle title="REPROJECTION CHECK" />
+      <div className="small">The selected metric point is projected through the current camera matrix.</div>
+      {reproj && <div className="metricGrid"><Metric label="Original" value={`${s.selected.pixel_x}, ${s.selected.pixel_y}`} /><Metric label="Projected" value={`${reproj.pixel_x.toFixed(2)}, ${reproj.pixel_y.toFixed(2)}`} /><Metric label="Inside image" value={reproj.inside ? 'YES' : 'NO'} /></div>}
+    </section>}
+
+    <section>
+      <SectionTitle title="MEASUREMENT VALIDATION" />
+      <div className="small">Compare current A→B geometry against a known real-world measurement.</div>
+      <div className="inputRow"><input type="number" min="0.001" step="0.001" placeholder="Known distance (m)" value={known} onChange={(e)=>setKnown(e.target.value)} /><button disabled={!currentMeasurement || !known} onClick={evaluate}>Evaluate</button></div>
+      {currentMeasurement != null && <div className="measurementHero"><span>CURRENT PREDICTED DISTANCE</span><strong>{currentMeasurement.toFixed(3)} m</strong></div>}
+      {evalResult && <div className="verifyBox"><span>Known {evalResult.known_distance_m.toFixed(3)} m</span><span>Absolute error {evalResult.absolute_error_m.toFixed(3)} m</span><span>Relative error {evalResult.relative_error_percent.toFixed(2)}%</span><span>Within 5 cm: {evalResult.within_5cm ? 'YES' : 'NO'}</span></div>}
+    </section>
+
+    {s.regionResult && <section><SectionTitle title="REGION / ROI" /><div className="metricGrid"><Metric label="Pixels" value={s.regionResult.pixel_count.toLocaleString()} /><Metric label="Valid depth" value={s.regionResult.valid_depth_pixels.toLocaleString()} /><Metric label="Median depth" value={s.regionResult.depth_median_m == null ? '—' : `${s.regionResult.depth_median_m.toFixed(2)} m`} /><Metric label="Width" value={s.regionResult.dimensions_m ? `${s.regionResult.dimensions_m[0].toFixed(2)} m` : '—'} /><Metric label="Height" value={s.regionResult.dimensions_m ? `${s.regionResult.dimensions_m[1].toFixed(2)} m` : '—'} /><Metric label="Area" value={s.regionResult.surface_area_m2 == null ? '—' : `${s.regionResult.surface_area_m2.toFixed(2)} m²`} /></div></section>}
+
+    {s.profile && <section><SectionTitle title="DEPTH PROFILE" /><Profile data={s.profile.depth_m} /><div className="small">{s.profile.start.join(', ')} → {s.profile.end.join(', ')} · {s.profile.samples} samples · path ≈ {(s.profile.distance_m.at(-1) ?? 0).toFixed(2)} m</div></section>}
+
+    <section>
+      <SectionTitle title="ANNOTATIONS" />
+      {s.annotations.length ? <div className="historyList">{s.annotations.map((a) => <div className="historyItem" key={a.id}><button onClick={()=>s.set({selected:a.point,cameraView:'selected',rightPanel:'inspect'})}><b>{a.name}</b><span>{a.point.x_m.toFixed(2)}, {a.point.y_m.toFixed(2)}, {a.point.z_m.toFixed(2)} m</span></button><button className="dangerMini" onClick={async()=>{const next=s.annotations.filter(x=>x.id!==a.id);s.set({annotations:next});await saveAnnotations(scene.scene_id,next).catch(()=>{})}}>×</button></div>)}</div> : <div className="emptyState">No annotations yet.</div>}
+    </section>
+
+    <section>
+      <SectionTitle title="RUNTIME" />
+      <div className="qualityBox"><Row n="Model" v={scene.model} /><Row n="Dataset" v={scene.model_dataset} /><Row n="Input" v={`${scene.quality.model_input_size ?? '—'} px`} /><Row n="Inference" v={`${scene.quality.inference_seconds ?? '—'} s`} /><Row n="Device" v={sys?.gpu_name || sys?.device || '—'} /><Row n="VRAM allocated" v={sys?.gpu_memory ? `${(sys.gpu_memory.allocated_bytes / 1073741824).toFixed(2)} GB` : '—'} /><Row n="Source revision" v={scene.model_source_commit.slice(0,8)} /></div>
+    </section>
+  </aside>
 }
-const Stat=({n,v}:{n:string;v:string})=><div className="stat"><span>{n}</span><b>{v}</b></div>
-function Profile({data}:{data:(number|null)[]}){const vals=data.filter((v):v is number=>v!=null),mn=vals.length?Math.min(...vals):0,mx=vals.length?Math.max(...vals):1;const points=data.map((v,i)=>v==null?null:[i/(Math.max(data.length-1,1))*100,100-(v-mn)/Math.max(mx-mn,1e-6)*92]).filter(Boolean) as [number,number][];return <div className="profileChart"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={points.map(([x,y])=>`${x},${y}`).join(' ')} /></svg><div className="profileAxis"><span>{mn.toFixed(2)} m</span><span>{mx.toFixed(2)} m</span></div></div>}
+
+function SectionTitle({ title }: { title: string }) { return <div className="sectionTitle"><span>{title}</span></div> }
+function Metric({ label, value }: { label: string; value: string }) { return <div className="metric"><span>{label}</span><b>{value}</b></div> }
+function Row({ n, v }: { n: string; v: string }) { return <div className="simpleRow"><span>{n}</span><b>{v}</b></div> }
+function Profile({ data }: { data: (number | null)[] }) { const values=data.filter((v):v is number=>v!=null);const mn=values.length?Math.min(...values):0;const mx=values.length?Math.max(...values):1;const pts=data.map((v,i)=>v==null?null:[i/Math.max(data.length-1,1)*100,100-(v-mn)/Math.max(mx-mn,1e-6)*92]).filter(Boolean) as [number,number][];return <div className="profileChart"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={pts.map(([x,y])=>`${x},${y}`).join(' ')} /></svg><div className="profileAxis"><span>{mn.toFixed(2)} m</span><span>{mx.toFixed(2)} m</span></div></div> }

@@ -1,4 +1,4 @@
-# Single Image 3D Studio 5.0 — Feature Matrix
+# Single Image 3D Studio 5.1 — Feature Matrix
 
 This document maps the product features to their implementation areas.
 
@@ -79,3 +79,10 @@ The application is local-first. After the initial bootstrap has downloaded the p
 - Pointer-capture-safe image navigation and freehand ROI drawing
 - Graceful WebGL fallback/error boundary
 - GPU-memory-aware model switching and segmentation CPU fallback
+
+
+## 5.1 interaction architecture
+
+The 5.1 viewer separates the right side into dedicated workspaces: Controls, Inspect, Measure, Analytics, and Project. Measure has explicit A/B/C slots, real-time 3D distance and angle calculation, backend verification, known-distance validation, and persistent history. Image/Depth/3D selection remains linked through the scene pixel identity.
+
+Depth exaggeration is display-only: metric coordinates, stored depth, measurements, and exported numeric geometry remain based on the original metric depth. Overlays that depend on depth (planes, frustum, mesh) use the same visual transform so they remain aligned during visualization.

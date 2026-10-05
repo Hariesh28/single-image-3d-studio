@@ -115,15 +115,12 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
     const current = useSceneStore.getState()
 
     if (tool === 'measure') {
-      if (!current.measurementA) {
-        set({ selected: info, hover: info, measurementA: info, measurementB: null, measurementC: null })
-      } else if (!current.measurementB) {
-        set({ selected: info, hover: info, measurementB: info })
-      } else if (!current.measurementC) {
-        set({ selected: info, hover: info, measurementC: info })
-      } else {
-        set({ selected: info, hover: info, measurementA: info, measurementB: null, measurementC: null })
-      }
+      const slot = current.measureSlot
+      const payload: any = { selected: info, hover: info, rightPanel: 'measure' }
+      if (slot === 'A') { payload.measurementA = info; payload.measureSlot = 'B' }
+      else if (slot === 'B') { payload.measurementB = info; payload.measureSlot = 'C' }
+      else { payload.measurementC = info; payload.measureSlot = 'A' }
+      set(payload)
       return
     }
 
@@ -356,20 +353,20 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
         className="mediaStage"
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
       >
-        {box && (
-          <div
-            ref={frameRef}
-            className="mediaFrame"
-            style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
-          >
-            <img
-              ref={imageRef}
-              src={src}
-              alt={title}
-              draggable={false}
-              onLoad={() => { setImageReady(true); setImageError(false); recalculateBox() }}
-              onError={() => { setImageError(true); setImageReady(false) }}
-            />
+        <div
+          ref={frameRef}
+          className={`mediaFrame ${box ? '' : 'loadingFrame'}`}
+          style={box ? { left: box.left, top: box.top, width: box.width, height: box.height } : { left: 0, top: 0, width: '100%', height: '100%' }}
+        >
+          <img
+            ref={imageRef}
+            src={src}
+            alt={title}
+            draggable={false}
+            style={!box ? { objectFit: 'contain' } : undefined}
+            onLoad={() => { setImageReady(true); setImageError(false); recalculateBox() }}
+            onError={() => { setImageError(true); setImageReady(false) }}
+          />
 
             {selectedObject && sceneId && (
               <img
@@ -379,6 +376,19 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
               />
             )}
 
+            {tool === 'measure' && scene && (
+              <>
+                {s.measurementA && <PointMarker point={s.measurementA} label="A" scene={scene} className="measure-marker-a" />}
+                {s.measurementB && <PointMarker point={s.measurementB} label="B" scene={scene} className="measure-marker-b" />}
+                {s.measurementC && <PointMarker point={s.measurementC} label="C" scene={scene} className="measure-marker-c" />}
+                {(s.measurementA || s.measurementB || s.measurementC) && (s.measurementA && s.measurementB) && (
+                  <svg className="overlaySvg measurementSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <line x1={(s.measurementA.pixel_x / Math.max(1, scene.width - 1)) * 100} y1={(s.measurementA.pixel_y / Math.max(1, scene.height - 1)) * 100} x2={(s.measurementB.pixel_x / Math.max(1, scene.width - 1)) * 100} y2={(s.measurementB.pixel_y / Math.max(1, scene.height - 1)) * 100} />
+                    {s.measurementC && <polyline points={`${(s.measurementA.pixel_x / Math.max(1, scene.width - 1)) * 100},${(s.measurementA.pixel_y / Math.max(1, scene.height - 1)) * 100} ${(s.measurementB.pixel_x / Math.max(1, scene.width - 1)) * 100},${(s.measurementB.pixel_y / Math.max(1, scene.height - 1)) * 100} ${(s.measurementC.pixel_x / Math.max(1, scene.width - 1)) * 100},${(s.measurementC.pixel_y / Math.max(1, scene.height - 1)) * 100}`} />}
+                  </svg>
+                )}
+              </>
+            )}
             {selected && <div className="crosshair" style={markerStyle(selected)} />}
             {hover && !selected && <div className="hoverDot" style={markerStyle(hover)} />}
 
@@ -407,8 +417,7 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
                 <span>Check the backend artifact endpoint and browser console.</span>
               </div>
             )}
-          </div>
-        )}
+        </div>
       </div>
 
       {hover && !lassoDrawing && (
@@ -427,4 +436,10 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
       )}
     </div>
   )
+}
+
+function PointMarker({ point, label, scene, className }: { point: PointInfo; label: string; scene: any; className: string }) {
+  const left = `${(point.pixel_x / Math.max(1, scene.width - 1)) * 100}%`
+  const top = `${(point.pixel_y / Math.max(1, scene.height - 1)) * 100}%`
+  return <div className={`measurePointMarker ${className}`} style={{ left, top }}><b>{label}</b><span>{point.z_m.toFixed(2)} m</span></div>
 }
