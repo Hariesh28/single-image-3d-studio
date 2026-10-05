@@ -216,13 +216,13 @@ export function PointCloudScene() {
       {s.selected && <CameraRay point={s.selected} exaggeration={s.depthExaggeration} centerZ={centerZ} />}
       {s.measurementA && s.measurementB && <MeasurementLine a={s.measurementA} b={s.measurementB} exaggeration={s.depthExaggeration} centerZ={centerZ} />}
       {s.measurementA && s.measurementB && s.measurementC && <AngleOverlay a={s.measurementA} b={s.measurementB} c={s.measurementC} exaggeration={s.depthExaggeration} centerZ={centerZ} />}
-      {s.showPlanes && scene.planes.map((p) => <PlaneOverlay key={p.id} plane={p} />)}
+      {s.showPlanes && scene.planes.map((p) => <PlaneOverlay key={p.id} plane={p} exaggeration={s.depthExaggeration} centerZ={centerZ} />)}
       {selectedObject && <ObjectBounds object={selectedObject} exaggeration={s.depthExaggeration} centerZ={centerZ} />}
       {s.showMesh && scene.artifacts.mesh_glb && <MeshObject url={artifact(scene.scene_id, scene.artifacts.mesh_glb)} exaggeration={s.depthExaggeration} centerZ={centerZ} />}
     </group>}
     {s.showFrustum && <CameraFrustum scene={scene} exaggeration={s.depthExaggeration} centerZ={centerZ} />}
     {s.showCamera && <CameraMarker />}
-    <GizmoHelper alignment="bottom-right" margin={[70, 70]}><GizmoViewport labelColor="#eefaff" axisColors={['#ff677b', '#6be58e', '#72aaff']} labelStyle={{ fontSize: '11px', fontWeight: 700 }} /></GizmoHelper>
+    <GizmoHelper alignment="bottom-right" margin={[70, 70]}><GizmoViewport labelColor="#eefaff" axisColors={['#ff677b', '#6be58e', '#72aaff']} /></GizmoHelper>
     <Html position={[0, 0, 0]} style={{ pointerEvents: 'none' }}><div className="fpsHud">{fps.toFixed(0)} FPS · source {cloud?.count.toLocaleString() || 0} · render {Math.min(adaptiveBudget, cloud?.count || 0).toLocaleString()} · depth x{s.depthExaggeration.toFixed(1)}</div></Html>
   </>
 }

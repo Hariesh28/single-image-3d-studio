@@ -38,6 +38,9 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
   const selected = useSceneStore((s) => s.selected)
   const hover = useSceneStore((s) => s.hover)
   const tool = useSceneStore((s) => s.tool)
+  const measurementA = useSceneStore((s) => s.measurementA)
+  const measurementB = useSceneStore((s) => s.measurementB)
+  const measurementC = useSceneStore((s) => s.measurementC)
   const annotations = useSceneStore((s) => s.annotations)
   const selectedObjectId = useSceneStore((s) => s.selectedObjectId)
   const regionShape = useSceneStore((s) => s.regionShape)
@@ -378,13 +381,13 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
 
             {tool === 'measure' && scene && (
               <>
-                {s.measurementA && <PointMarker point={s.measurementA} label="A" scene={scene} className="measure-marker-a" />}
-                {s.measurementB && <PointMarker point={s.measurementB} label="B" scene={scene} className="measure-marker-b" />}
-                {s.measurementC && <PointMarker point={s.measurementC} label="C" scene={scene} className="measure-marker-c" />}
-                {(s.measurementA || s.measurementB || s.measurementC) && (s.measurementA && s.measurementB) && (
+                {measurementA && <PointMarker point={measurementA} label="A" scene={scene} className="measure-marker-a" />}
+                {measurementB && <PointMarker point={measurementB} label="B" scene={scene} className="measure-marker-b" />}
+                {measurementC && <PointMarker point={measurementC} label="C" scene={scene} className="measure-marker-c" />}
+                {measurementA && measurementB && (
                   <svg className="overlaySvg measurementSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    <line x1={(s.measurementA.pixel_x / Math.max(1, scene.width - 1)) * 100} y1={(s.measurementA.pixel_y / Math.max(1, scene.height - 1)) * 100} x2={(s.measurementB.pixel_x / Math.max(1, scene.width - 1)) * 100} y2={(s.measurementB.pixel_y / Math.max(1, scene.height - 1)) * 100} />
-                    {s.measurementC && <polyline points={`${(s.measurementA.pixel_x / Math.max(1, scene.width - 1)) * 100},${(s.measurementA.pixel_y / Math.max(1, scene.height - 1)) * 100} ${(s.measurementB.pixel_x / Math.max(1, scene.width - 1)) * 100},${(s.measurementB.pixel_y / Math.max(1, scene.height - 1)) * 100} ${(s.measurementC.pixel_x / Math.max(1, scene.width - 1)) * 100},${(s.measurementC.pixel_y / Math.max(1, scene.height - 1)) * 100}`} />}
+                    <line x1={(measurementA.pixel_x / Math.max(1, scene.width - 1)) * 100} y1={(measurementA.pixel_y / Math.max(1, scene.height - 1)) * 100} x2={(measurementB.pixel_x / Math.max(1, scene.width - 1)) * 100} y2={(measurementB.pixel_y / Math.max(1, scene.height - 1)) * 100} />
+                    {measurementC && <polyline points={`${(measurementA.pixel_x / Math.max(1, scene.width - 1)) * 100},${(measurementA.pixel_y / Math.max(1, scene.height - 1)) * 100} ${(measurementB.pixel_x / Math.max(1, scene.width - 1)) * 100},${(measurementB.pixel_y / Math.max(1, scene.height - 1)) * 100} ${(measurementC.pixel_x / Math.max(1, scene.width - 1)) * 100},${(measurementC.pixel_y / Math.max(1, scene.height - 1)) * 100}`} />}
                   </svg>
                 )}
               </>
