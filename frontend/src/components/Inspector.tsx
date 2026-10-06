@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { artifact, getSegmentation, reproject, saveAnnotations } from '../api/client'
+import { getScene, getSegmentation, reproject, saveAnnotations } from '../api/client'
 import { useSceneStore } from '../store/useSceneStore'
-import type { PointInfo } from '../types'
 
 export function Inspector() {
   const s = useSceneStore()
@@ -27,10 +26,15 @@ export function Inspector() {
     if (!s.sceneId || !s.selected) return
     const name = window.prompt('Annotation name', `Point ${s.annotations.length + 1}`)
     if (!name?.trim()) return
-    const next = [...s.annotations, { id: crypto.randomUUID(), name: name.trim(), point: s.selected, color: '#67e8f9', note: '' }]
-    s.set({ annotations: next })
-    await saveAnnotations(s.sceneId, next).catch(() => {})
-    setObjectStatus('Annotation saved.')
+    const annotation = { id: crypto.randomUUID(), name: name.trim(), point: s.selected, color: '#67e8f9', note: '' }
+    const next = [...s.annotations, annotation]
+    try {
+      await saveAnnotations(s.sceneId, next)
+      s.set({ annotations: next, selectedAnnotationId: annotation.id })
+      setObjectStatus('Annotation saved.')
+    } catch (error) {
+      setObjectStatus(String(error))
+    }
   }
 
   const setMeasure = () => {
@@ -42,7 +46,7 @@ export function Inspector() {
     if (!scene) return
     try {
       const result = await getSegmentation(scene.scene_id)
-      const fresh = await (await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api'}/scenes/${scene.scene_id}`, { cache: 'no-store' })).json()
+      const fresh = await getScene(scene.scene_id)
       s.set({ scene: fresh, selectedObjectId: result.objects?.[0]?.id ?? s.selectedObjectId })
       setObjectStatus(`Loaded ${result.objects?.length ?? 0} segmented objects.`)
     } catch (error) {

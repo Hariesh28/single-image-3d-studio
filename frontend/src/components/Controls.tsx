@@ -166,7 +166,7 @@ export function Controls() {
     </PanelSection>
 
     <PanelSection title="TOOLS">
-      <div className="toolCardGrid"><button onClick={() => s.set({ tool: 'inspect', rightPanel: 'inspect' })}>Inspect</button><button onClick={() => s.set({ tool: 'measure', rightPanel: 'measure' })}>Measure</button><button onClick={() => s.set({ tool: 'annotate' })}>Annotate</button><button onClick={() => s.set({ tool: 'region', regionPoints: [] })}>Region</button><button onClick={() => s.set({ tool: 'profile', profileStart: null, profile: null })}>Profile</button></div>
+      <div className="toolCardGrid"><button onClick={() => s.set({ tool: 'inspect', rightPanel: 'inspect' })}>Inspect</button><button onClick={() => s.set({ tool: 'measure', rightPanel: 'measure' })}>Measure</button><button onClick={() => s.set({ tool: 'annotate', rightPanel: 'tool', toolMessage: '' })}>Annotate</button><button onClick={() => s.set({ tool: 'region', rightPanel: 'tool', regionPoints: [], regionResult: null, mode: ['3d', 'compare', 'parallax'].includes(s.mode) ? 'split' : s.mode, toolMessage: '' })}>Region</button><button onClick={() => s.set({ tool: 'profile', rightPanel: 'tool', profileStart: null, profile: null, mode: ['3d', 'compare', 'parallax'].includes(s.mode) ? 'split' : s.mode, toolMessage: '' })}>Profile</button></div>
       <Field label="Region shape"><select value={s.regionShape} onChange={(e) => s.set({ regionShape: e.target.value as RegionShape, regionPoints: [], regionResult: null })}><option value="polygon">Polygon</option><option value="rectangle">Rectangle</option><option value="lasso">Freehand lasso</option></select></Field>
     </PanelSection>
 

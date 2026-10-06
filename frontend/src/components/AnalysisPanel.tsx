@@ -33,6 +33,19 @@ export function AnalysisPanel() {
     try { setEvalResult(await evaluateDistance(scene.scene_id, currentMeasurement, Number(known))) } catch { setEvalResult(null) }
   }
 
+  const removeAnnotation = async (id: string) => {
+    if (!scene) return
+    const next = s.annotations.filter((annotation) => annotation.id !== id)
+    s.set({ toolMessage: '' })
+    try {
+      await saveAnnotations(scene.scene_id, next)
+      s.set({ annotations: next, selectedAnnotationId: s.selectedAnnotationId === id ? null : s.selectedAnnotationId })
+      s.set({ toolMessage: 'Annotation deleted.' })
+    } catch (error) {
+      s.set({ toolMessage: String(error) })
+    }
+  }
+
   const maxBin = Math.max(...(hist?.counts || [1]))
   if (!scene) return null
   const dims = scene.width / Math.max(scene.height, 1)
@@ -91,7 +104,8 @@ export function AnalysisPanel() {
 
     <section>
       <SectionTitle title="ANNOTATIONS" />
-      {s.annotations.length ? <div className="historyList">{s.annotations.map((a) => <div className="historyItem" key={a.id}><button onClick={()=>s.set({selected:a.point,cameraView:'selected',rightPanel:'inspect'})}><b>{a.name}</b><span>{a.point.x_m.toFixed(2)}, {a.point.y_m.toFixed(2)}, {a.point.z_m.toFixed(2)} m</span></button><button className="dangerMini" onClick={async()=>{const next=s.annotations.filter(x=>x.id!==a.id);s.set({annotations:next});await saveAnnotations(scene.scene_id,next).catch(()=>{})}}>×</button></div>)}</div> : <div className="emptyState">No annotations yet.</div>}
+      {s.annotations.length ? <div className="historyList">{s.annotations.map((a) => <div className="historyItem" key={a.id}><button onClick={()=>{s.set({selected:a.point,selectedAnnotationId:a.id,tool:'inspect',rightPanel:'inspect'});s.requestCameraReset('selected')}}><b>{a.name}</b><span>{a.point.x_m.toFixed(2)}, {a.point.y_m.toFixed(2)}, {a.point.z_m.toFixed(2)} m</span></button><button className="dangerMini" aria-label={`Delete ${a.name}`} onClick={() => removeAnnotation(a.id)}>×</button></div>)}</div> : <div className="emptyState">No annotations yet.</div>}
+      {s.toolMessage && <div className={s.toolMessage.endsWith('deleted.') ? 'notice' : 'error'} role="status">{s.toolMessage}</div>}
     </section>
 
     <section>

@@ -46,6 +46,7 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
   const regionShape = useSceneStore((s) => s.regionShape)
   const polygon = useSceneStore((s) => s.regionPoints)
   const profileStart = useSceneStore((s) => s.profileStart)
+  const profileResult = useSceneStore((s) => s.profile)
   const set = useSceneStore((s) => s.set)
 
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -137,12 +138,20 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
         color: '#67e8f9',
         note: '',
       }
-      const next = [...useSceneStore.getState().annotations, item]
-      set({ selected: info, hover: info, annotations: next })
-      await saveAnnotations(sceneId, next)
+      const currentAnnotations = useSceneStore.getState().annotations
+      const next = [...currentAnnotations, item]
+      set({ toolMessage: '' })
+      try {
+        await saveAnnotations(sceneId, next)
+        set({ selected: info, hover: info, annotations: next, selectedAnnotationId: item.id })
+        set({ toolMessage: 'Annotation saved.' })
+      } catch (error) {
+        set({ toolMessage: String(error) })
+      }
       return
     }
 
+    set({ toolMessage: '' })
     set({ selected: info, hover: info })
   }, [annotations.length, sceneId, set, tool])
 
@@ -153,8 +162,9 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
     try {
       const out = await region(sceneId, points)
       set({ regionResult: out, regionPoints: points })
+      set({ toolMessage: 'Region analysis complete.' })
     } catch (error) {
-      console.error(error)
+      set({ toolMessage: String(error) })
     }
   }, [sceneId, set])
 
@@ -260,12 +270,14 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
       const current = useSceneStore.getState()
       if (!current.profileStart) {
         set({ profileStart: [point.x, point.y], profile: null })
+        set({ toolMessage: '' })
       } else {
         try {
           const output = await profile(sceneId, current.profileStart, [point.x, point.y])
           set({ profile: output, profileStart: null })
+          set({ toolMessage: 'Depth profile generated.' })
         } catch (error) {
-          console.error(error)
+          set({ toolMessage: String(error) })
           set({ profileStart: null })
         }
       }
@@ -328,19 +340,19 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
   }
 
   const polygonPoints = polygon.map((point) => `${(point[0] / scene!.width) * 100},${(point[1] / scene!.height) * 100}`)
-  if (polygon.length >= 3 && regionShape !== 'lasso') polygonPoints.push(polygonPoints[0])
+  if (polygon.length >= 3) polygonPoints.push(polygonPoints[0])
 
   return (
     <div
       ref={viewportRef}
       className="mediaPanel"
+      data-tool={tool}
       onPointerDown={pointerDown}
       onPointerMove={pointerMove}
       onPointerUp={pointerUp}
       onPointerCancel={() => { dragRef.current = null; setLassoDrawing(false) }}
       onWheel={wheel}
       onContextMenu={(event) => event.preventDefault()}
-      onDoubleClick={tool === 'region' && regionShape === 'polygon' ? () => finishRegion() : undefined}
     >
       <div className="mediaLabel">{title}{depth ? ' · METRIC' : ''}</div>
 
@@ -409,6 +421,18 @@ export function MediaPanel({ src, title, depth = false, min, max }: Props) {
                 left: `${(profileStart[0] / Math.max(1, scene.width - 1)) * 100}%`,
                 top: `${(profileStart[1] / Math.max(1, scene.height - 1)) * 100}%`,
               }} />
+            )}
+            {tool === 'profile' && profileResult && scene && (
+              <svg className="overlaySvg profileLineSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <line
+                  x1={(profileResult.start[0] / Math.max(1, scene.width - 1)) * 100}
+                  y1={(profileResult.start[1] / Math.max(1, scene.height - 1)) * 100}
+                  x2={(profileResult.end[0] / Math.max(1, scene.width - 1)) * 100}
+                  y2={(profileResult.end[1] / Math.max(1, scene.height - 1)) * 100}
+                />
+                <circle cx={(profileResult.start[0] / Math.max(1, scene.width - 1)) * 100} cy={(profileResult.start[1] / Math.max(1, scene.height - 1)) * 100} r="1" />
+                <circle cx={(profileResult.end[0] / Math.max(1, scene.width - 1)) * 100} cy={(profileResult.end[1] / Math.max(1, scene.height - 1)) * 100} r="1" />
+              </svg>
             )}
 
             {!imageReady && !imageError && (

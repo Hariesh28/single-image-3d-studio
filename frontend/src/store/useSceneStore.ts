@@ -13,7 +13,7 @@ import type {
 } from '../types'
 
 export type MeasureSlot = 'A' | 'B' | 'C'
-export type RightPanel = 'controls' | 'inspect' | 'measure' | 'analysis' | 'project'
+export type RightPanel = 'controls' | 'inspect' | 'measure' | 'tool' | 'analysis' | 'project'
 
 export interface MeasurementRecord {
   id: string
@@ -51,6 +51,7 @@ interface Store {
   regionResult: RegionResult | null
   profile: CrossSection | null
   profileStart: [number, number] | null
+  toolMessage: string
   density: 0 | 1 | 2 | 3
   pointSize: number
   pointBudget: number
@@ -116,6 +117,7 @@ const initial: Omit<Store, 'set' | 'reset' | 'requestCameraReset' | 'snapshot' |
   regionResult: null,
   profile: null,
   profileStart: null,
+  toolMessage: '',
   density: 0,
   pointSize: 2.2,
   pointBudget: 2_000_000,

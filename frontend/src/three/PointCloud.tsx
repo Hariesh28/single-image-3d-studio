@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GizmoHelper, GizmoViewport, Grid, Html, Line, OrbitControls } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
-import { artifact, getPoint } from '../api/client'
+import { artifact, getPoint, saveAnnotations } from '../api/client'
 import type { Cloud, ColorMode, Plane, PointInfo, Scene } from '../types'
 import { loadCloud } from './binary'
 import { useSceneStore } from '../store/useSceneStore'
@@ -351,6 +351,11 @@ function CloudObject(p: {
   const click = async (event: any) => {
     event.stopPropagation()
     if (!p.sceneId || event.index == null) return
+    const current = useSceneStore.getState()
+    if (current.tool === 'region' || current.tool === 'profile') {
+      current.set({ toolMessage: 'Region and profile are image-space tools. Switch to Image, Depth or Split view.' })
+      return
+    }
     const ids = geometry.userData.pixelIds as Uint32Array
     const pointIndex = Math.max(0, Math.min(ids.length - 1, event.index))
     const pixelId = ids[pointIndex]
@@ -366,8 +371,27 @@ function CloudObject(p: {
         else if (slot === 'B') { payload.measurementB = info; payload.measureSlot = 'C' }
         else { payload.measurementC = info; payload.measureSlot = 'A' }
         state.set(payload)
-      } else state.set({ selected: info, hover: info })
-    } catch (error) { console.error('Point lookup failed', error) }
+      } else if (state.tool === 'annotate') {
+        const name = window.prompt('Annotation name', `Point ${state.annotations.length + 1}`)
+        if (!name?.trim()) return
+        const item = { id: crypto.randomUUID(), name: name.trim(), point: info, color: '#67e8f9', note: '' }
+        const next = [...state.annotations, item]
+        state.set({ toolMessage: '' })
+        try {
+          await saveAnnotations(p.sceneId, next)
+        } catch (error) {
+          state.set({ toolMessage: String(error) })
+          return
+        }
+        state.set({ selected: info, hover: info, annotations: next, selectedAnnotationId: item.id })
+        state.set({ toolMessage: 'Annotation saved.' })
+      } else if (state.tool === 'inspect') {
+        state.set({ selected: info, hover: info })
+      }
+    } catch (error) {
+      console.error('Point lookup failed', error)
+      useSceneStore.getState().set({ toolMessage: String(error) })
+    }
   }
 
   if (!p.cloud.count || !geometry.attributes.position) return null

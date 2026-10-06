@@ -7,6 +7,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { ImagePanel } from './components/ImagePanel'
 import { Inspector } from './components/Inspector'
 import { MeasurePanel } from './components/MeasurePanel'
+import { ToolWorkspace } from './components/ToolWorkspace'
 import { Processing } from './components/Processing'
 import { ProjectPanel } from './components/ProjectPanel'
 import { ComparePanel } from './components/ComparePanel'
@@ -53,7 +54,12 @@ export default function App() {
       farDepth: Math.max(s.scene.depth_max_m, c.source === 'default_fov' ? 20 : 80),
     })
 
-    getAnnotations(s.scene.scene_id).then((x) => s.set({ annotations: x.items || [] })).catch(() => {})
+    const activeSceneId = s.scene.scene_id
+    getAnnotations(activeSceneId).then((x) => {
+      if (generation === restoreGeneration.current && useSceneStore.getState().sceneId === activeSceneId) {
+        s.set({ annotations: x.items || [] })
+      }
+    }).catch(() => {})
     getState(s.scene.scene_id).then((ui: any) => {
       if (generation !== restoreGeneration.current) return
       if (!ui || typeof ui !== 'object') return
@@ -65,7 +71,9 @@ export default function App() {
       s.set({
         mode: ui.mode,
         tool: ui.tool,
-        rightPanel: ui.right_panel || (ui.tool === 'measure' ? 'measure' : ui.tool === 'inspect' ? 'inspect' : 'controls'),
+        rightPanel: ui.right_panel === 'controls' && ['annotate', 'region', 'profile'].includes(ui.tool)
+          ? 'tool'
+          : ui.right_panel || (ui.tool === 'measure' ? 'measure' : ui.tool === 'inspect' ? 'inspect' : 'tool'),
         density: ui.density,
         pointSize: ui.point_size,
         pointBudget: ui.point_budget,
@@ -176,10 +184,13 @@ export default function App() {
         measureSlot: 'A',
         measurementHistory: [],
         annotations: [],
+        selectedAnnotationId: null,
+        selectedObjectId: null,
         regionPoints: [],
         regionResult: null,
         profile: null,
         profileStart: null,
+        toolMessage: '',
         mode: 'split',
         tool: 'inspect',
         rightPanel: 'inspect',
@@ -226,8 +237,16 @@ export default function App() {
     markUserInteraction()
     const payload: any = { tool }
     if (panel) payload.rightPanel = panel
-    if (tool === 'region') payload.regionPoints = []
-    if (tool === 'profile') payload.profileStart = null
+    if (tool === 'region') {
+      payload.regionPoints = []
+      payload.regionResult = null
+    }
+    if (tool === 'profile') {
+      payload.profileStart = null
+      payload.profile = null
+    }
+    if (tool === 'annotate' || tool === 'region' || tool === 'profile') payload.toolMessage = ''
+    if ((tool === 'region' || tool === 'profile') && ['3d', 'compare', 'parallax'].includes(s.mode)) payload.mode = 'split'
     s.set(payload)
   }
 
@@ -239,8 +258,9 @@ export default function App() {
         <span>{scene.calibration.source.toUpperCase()} · CAL {scene.calibration.quality?.label?.toUpperCase() || '—'}</span>
       </div>
       <div className="headerActions">
-        <button className="headerBtn" onClick={() => s.set({ rightPanel: 'analysis' })}>Analytics</button>
-        <button className="headerBtn" onClick={() => s.set({ rightPanel: 'project' })}>Project</button>
+        <button className="headerBtn" onClick={() => { markUserInteraction(); s.set({ rightPanel: 'analysis' }) }}>Analytics</button>
+        <button className="headerBtn" onClick={() => { markUserInteraction(); s.set({ rightPanel: 'controls' }) }}>Controls</button>
+        <button className="headerBtn" onClick={() => { markUserInteraction(); s.set({ rightPanel: 'project' }) }}>Project</button>
         <button className="headerGhost" onClick={() => s.reset()}>New scene</button>
       </div>
     </header>
@@ -249,7 +269,7 @@ export default function App() {
       onNew={() => { markUserInteraction(); s.reset() }}
       onProject={() => { markUserInteraction(); s.set({ rightPanel: 'project' }) }}
       onUserInteraction={markUserInteraction}
-      onTool={(tool) => setTool(tool, tool === 'measure' ? 'measure' : tool === 'inspect' ? 'inspect' : 'controls')}
+      onTool={(tool) => setTool(tool, tool === 'measure' ? 'measure' : tool === 'inspect' ? 'inspect' : 'tool')}
     />
 
     <main className={`workspace mode-${s.mode}`}>
@@ -264,11 +284,12 @@ export default function App() {
       </div>
 
       <div className="sidePanel">
-        {s.rightPanel === 'controls' && s.tool !== 'measure' && <Controls />}
-        {s.rightPanel === 'inspect' && s.tool !== 'measure' && <Inspector />}
-        {(s.rightPanel === 'measure' || s.tool === 'measure') && <MeasurePanel />}
-        {s.rightPanel === 'analysis' && s.tool !== 'measure' && <AnalysisPanel />}
-        {s.rightPanel === 'project' && s.tool !== 'measure' && <ProjectPanel />}
+        {s.rightPanel === 'controls' && <Controls />}
+        {s.rightPanel === 'inspect' && <Inspector />}
+        {s.rightPanel === 'measure' && <MeasurePanel />}
+        {s.rightPanel === 'tool' && <ToolWorkspace />}
+        {s.rightPanel === 'analysis' && <AnalysisPanel />}
+        {s.rightPanel === 'project' && <ProjectPanel />}
       </div>
     </main>
     <StatusBar />
@@ -277,9 +298,9 @@ export default function App() {
 
 function stageHint(tool: string) {
   if (tool === 'measure') return 'Choose slot A/B/C in the Measure panel, then click Image, Depth or 3D. '
-  if (tool === 'annotate') return 'Click a point to save a named annotation.'
-  if (tool === 'region') return 'Use polygon/rectangle/lasso to analyze a region of the image.'
-  if (tool === 'profile') return 'Click a start point and an end point to generate a depth profile.'
+  if (tool === 'annotate') return 'Click a point in Image, Depth or 3D to save a named annotation.'
+  if (tool === 'region') return 'Draw on Image or Depth; use polygon vertices, two rectangle corners, or a lasso drag.'
+  if (tool === 'profile') return 'Click a start and end point in Image or Depth to generate a metric depth profile.'
   return 'Hover/click Image or Depth for XYZ; click the 3D cloud for linked pixel selection.'
 }
 
@@ -322,9 +343,9 @@ function useKeyboardShortcuts(markUserInteraction: () => void) {
       else if (k === '5') { markUserInteraction(); set({ mode: 'parallax' }) }
       else if (k === 'i') { markUserInteraction(); set({ tool: 'inspect', rightPanel: 'inspect' }) }
       else if (k === 'm') { markUserInteraction(); set({ tool: 'measure', rightPanel: 'measure' }) }
-      else if (k === 'a') { markUserInteraction(); set({ tool: 'annotate' }) }
-      else if (k === 'r') { markUserInteraction(); set({ tool: 'region', regionPoints: [] }) }
-      else if (k === 'p') { markUserInteraction(); set({ tool: 'profile', profileStart: null, profile: null }) }
+      else if (k === 'a') { markUserInteraction(); set({ tool: 'annotate', rightPanel: 'tool', toolMessage: '' }) }
+      else if (k === 'r') { markUserInteraction(); const state = useSceneStore.getState(); set({ tool: 'region', rightPanel: 'tool', regionPoints: [], regionResult: null, mode: ['3d', 'compare', 'parallax'].includes(state.mode) ? 'split' : state.mode, toolMessage: '' }) }
+      else if (k === 'p') { markUserInteraction(); const state = useSceneStore.getState(); set({ tool: 'profile', rightPanel: 'tool', profileStart: null, profile: null, mode: ['3d', 'compare', 'parallax'].includes(state.mode) ? 'split' : state.mode, toolMessage: '' }) }
       else if (k === 'f') { markUserInteraction(); reset('home') }
       else if (k === 'escape') { markUserInteraction(); set({ selected: null, hover: null, measurementA: null, measurementB: null, measurementC: null, regionPoints: [], profileStart: null, measureSlot: 'A' }) }
       else if (k === 'g') { markUserInteraction(); const state = useSceneStore.getState(); state.set({ showGrid: !state.showGrid }) }
